@@ -3,39 +3,44 @@ import tensorflow as tf
 import numpy as np
 from get_dataframe import data_structure
 
-def collect_data(path):
+def prepare_data(path):
     filename = path
-    data_frame = pandas.read_csv(filename)
-    # data_frame = tf.data.experimental.CsvDataset(filename, record_defaults)
-    return data_frame
+    data_frame = pandas.read_csv(
+        filename,
+        header=0,
+        index_col=False,
+        usecols=[1, 2, 3, 4, 5, 6, 7, 8, 9],
+        )
 
-def prepare_data(data):
-    array = np.array(data)
-    ys = array[:, : -2]
-    xs = array[1:]
 
-    return xs, ys
+    data_frame['type'] = pandas.Categorical(data_frame['type'])
 
-    # ys = ys[:, :1]
-    # print(ys)
+    print(data_frame.dtypes)
 
-    # xs = np.asarray(xs).astype(np.float32)
-    # ys = np.asarray(ys).astype(np.float32)
+    labels = data_frame.pop('isFraud')
+    features = data_frame
+
+    data_set = tf.data.Dataset.from_tensor_slices((features.values, labels.values))
+    # print(data_set.element_spec)
+
+
+
     # ds = data_structure(data)
     # print(ds.element_spec)
 
-def build_model(dataframe):
+def build_model():
     model = tf.keras.Sequential()
     model.add(tf.keras.layers.Input(shape=(8,)))
     model.add(tf.keras.layers.Dense(32, activation="relu"))
     model.add(tf.keras.layers.Dense(1))
     model.compile(optimizer='sgd', loss='mean_squared_error')
-    # model.summary()
+    model.summary()
     return model
 
 def train_model(model, xs, ys):
     model.fit(xs, ys, epochs=500)
 
-data = collect_data('/home/jm/Data/test_PS_20174392719_1491204439457_log.csv')
-print(data.describe(''))
+pandas.set_option("display.max_columns", 11)
+prepare_data('/home/jm/Data/test_PS_20174392719_1491204439457_log.csv')
+# prepare_dataset(data)
 # print(model.predict([20]))
