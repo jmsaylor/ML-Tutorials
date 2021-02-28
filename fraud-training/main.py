@@ -1,74 +1,45 @@
-import pandas
-import tensorflow as tf
-tf.executing_eagerly()
+import pandas as pd
 
 from sklearn import preprocessing
 import numpy as np
-from get_dataframe import data_structure
+
+names = np.array(['step', 'type', 'amount', 'nameOrig', 'oldbalanceOrg', 'newbalanceOrig',
+       'nameDest', 'oldbalanceDest', 'newbalanceDest', 'isFraud',
+       'isFlaggedFraud'])
+
+dataset = pd.read_csv("/home/jm/Data/PS_20174392719_1491204439457_log.csv", names=names, skiprows=100000,nrows=1000000)
+# csv_iter = pd.read_csv("/home/jm/Data/PS_20174392719_1491204439457_log.csv", iterator=True, chunksize=1000)
+# frauds = pd.concat([chunk[chunk['isFraud'] == 1] for chunk in csv_iter])
+
+frauds = pd.concat([dataset[dataset['isFraud'] == 1]])
 
 
-def prepare_data(path):
-    df = pandas.read_csv(path)
-    df.pop('step'); df.pop('isFlaggedFraud')
-    df.pop('nameOrig'); df.pop('nameDest')
-    # print(df.head())
+frauds = frauds.iloc[:, 1:-1].values
 
-    data = {}
+non_tx_cashout = []
+transfer_cashout = []
 
-    columns = ['type', 'amount', 'nameOrig', 'oldbalanceOrg', 'newbalanceOrig',
-     'nameDest', 'oldbalanceDest', 'newbalanceDest', 'isFraud']
+for tx in frauds:
+    if len(non_tx_cashout) == 0:
+        non_tx_cashout.append(tx)
+        continue
+    
+    prev = non_tx_cashout.pop()
+    
+    if tx[1] != prev[1]:
+        non_tx_cashout.append(prev)
+        non_tx_cashout.append(tx)
+    else:
+        transfer_cashout.append(prev)
+        transfer_cashout.append(tx)
 
-    types = np.array(df.pop('type'))
-
-    # #TODO: improve to one-hot encoding
-    # label_encoder = preprocessing.LabelEncoder().fit(types)
-    # types = label_encoder.transform(types)
-    # data['type'] = np.array(types, dtype=np.int)
-
-    numeric_data_cols = ['amount', 'oldbalanceOrg', 'newbalanceOrig', 'oldbalanceDest', 'newbalanceDest']
-
-    numeric_data = []
-
-    for name in numeric_data_cols:
-        numeric_data.append(df.pop(name).values)
-
-    amounts_scaler = preprocessing.MinMaxScaler().fit(numeric_data)
-    scaled_numeric_data = amounts_scaler.transform(numeric_data)
-
-    for index in range(len(numeric_data_cols)):
-        data[numeric_data_cols[index]] = np.array(scaled_numeric_data[index], dtype=float)
-
-    target = []
-    isFraud = df.pop('isFraud').values
-    for i in range(len(isFraud)):
-        target.append([1, 1, 1, 1, isFraud[i]])
-        # target.append([isFraud[i]])
-
-    target = np.array(target)
-
-    source_data = []
-    for name in data:
-        source_data.append(data[name])
+non_tx_cashout = pd.DataFrame(non_tx_cashout, columns=names[1:-1])
+transfer_cashout = pd.DataFrame(transfer_cashout, columns=names[1:-1])
 
 
-    source_data = np.array(source_data)
-    source_data = source_data.transpose()
-    return source_data, target
+# non_tx_cashout = np.array(non_tx_cashout)
+#X = dataset.iloc[:, 1:-2].values
+#y = dataset.iloc[:, -2].values
 
+#from sklearn.model_selection import train_test_split
 
-def build_model():
-    model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Input(shape=(None , 5)))
-    model.add(tf.keras.layers.Dense(1))
-    model.compile(optimizer='sgd', loss='mean_squared_error')
-    model.summary()
-    return model
-
-def train_model(model, xs, ys):
-    model.fit(xs, ys, epochs=500)
-
-xs, ys = prepare_data('/home/jm/Data/test_PS_20174392719_1491204439457_log.csv')
-print(xs)
-model = build_model()
-model.fit(xs, ys, epochs=5)
-print(model.predict([[1,0,1,0,1]]))
